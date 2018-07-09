@@ -1,3 +1,4 @@
+#!/bin/sh
 Router CORP
 configure terminal
 security passwords min-length 10

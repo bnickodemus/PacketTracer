@@ -1,3 +1,4 @@
+#!/bin/sh
 HQ-ASA Config
 domain-name thecar1.com
 interface vlan 1
