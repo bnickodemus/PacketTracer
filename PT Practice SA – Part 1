@@ -1,0 +1,157 @@
+Router CORP
+configure terminal
+security passwords min-length 10
+enable secret ciscoclass
+service password-encryption
+line console 0
+login local
+exec-timeout 20 0
+line vty 0 15
+login local
+exec-timeout 20 0
+exit
+interface serial0/0/0
+no cdp enable
+login block-for 30 attempts 3 within 60
+zone security CORP-INSIDE
+exit
+zone security INTERNET
+exit
+class-map type inspect match-any INSIDE_PROTOCOLS
+match protocol http
+match protocol tcp
+match protocol udp
+match protocol icmp
+match protocol dns
+exit
+policy-map type inspect INSIDE_TO_INTERNET
+class type inspect INSIDE_PROTOCOLS
+inspect
+exit
+exit
+class-map type inspect match-any DMZ_WEB
+match protocol http
+match protocol dns
+exit
+policy-map type inspect INTERNET_TO_DMZWEB
+class type inspect DMZ_WEB
+pass
+exit
+exit
+zone-pair security IN_TO_OUT_ZONE source CORP-INSIDE destination INTERNET
+service-policy type inspect INSIDE_TO_INTERNET
+exit
+zone-pair security INTERNET_TO_DMZ_ZONE source INTERNET destination CORP-INSIDE
+service-policy type inspect INTERNET_TO_DMZWEB
+exit
+interface serial0/0/0
+zone-member security INTERNET
+exit
+interface serial0/0/1
+zone-member security CORP-INSIDE
+exit
+
+Router INTERNAL
+configure terminal
+security passwords min-length 10
+enable secret ciscoclass
+service password-encryption
+login on-failure log
+login on-success log
+line console 0
+login local
+exec-timeout 20 0
+line vty 0 15
+login local
+exec-timeout 20 0
+exit
+interface serial0/0/0
+no cdp enable
+login block-for 30 attempts 3 within 60
+ntp server 172.16.25.2 key 0
+ntp update-calendar
+service timestamps log datetime msec
+logging host 172.16.25.2
+ip domain-name theccnas.com
+crypto key generate rsa
+
+1024
+
+ip ssh version 2
+ip ssh time-out 90
+ip ssh authentication-retries 2
+line vty 0 4
+transport input ssh
+exit
+line vty 5 15
+transport input ssh
+exit
+aaa new-model
+Radius-server host 172.16.25.2 key corpradius
+aaa authentication login default group radius local
+aaa authorization exec default local
+line vty 0 4
+login authentication default
+line vty 5 15
+login authentication default
+line con 0
+login authentication default
+exit
+access-list 12 permit host 172.16.25.5
+line vty 0 15
+access-class 12 in
+exit
+ip ips config location flash:
+ip ips name corpips
+ip ips signature-category
+category all
+retired true
+exit
+category ios_ips basic
+retired false
+exit
+exit
+interface Gi0/0
+ip ips corpips out
+exit
+ip ips signature-definition
+signature 2004 0
+status
+retired false
+enable true
+exit
+engine
+event-action produce-alert
+event-action deny-packet-inline
+exit
+exit
+exit
+exit
+
+Switch 1
+configure terminal
+interface range fastEthernet0/1-22
+spanning-tree portfast
+spanning-tree bpduguard enable
+switchport port-security
+switchport port-security violation shutdown
+switchport port-security mac-address sticky
+switchport port-security maximum 2
+exit
+interface range fastethernet 0/2-4
+shutdown
+interface range fastethernet 0/6-10
+shutdown
+interface range fastethernet 0/13-22
+shutdown
+exit
+interface range fa0/23-24
+switchport nonegotiate
+switchport trunk native vlan 50
+
+Switch 4
+configure terminal
+interface range fa0/23-24
+switchport mode trunk
+switchport nonegotiate
+switchport trunk native vlan 50

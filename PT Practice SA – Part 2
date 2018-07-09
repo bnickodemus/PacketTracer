@@ -1,0 +1,115 @@
+HQ-ASA Config
+domain-name thecar1.com
+interface vlan 1
+ip address 192.168.10.1 255.255.255.0
+nameif inside
+Security-level 100
+no shutdown
+exit
+interface vlan 2
+ip add 209.165.200.253 255.255.255.240
+nameif outside
+security-level 0
+no shutdown
+exit
+interface vlan 3
+No forward int vlan 1
+ip add 192.168.20.1 255.255.255.0
+nameif  dmz
+security-level 70
+no shutdown
+exit
+interface e0/1
+switchport access vlan 1
+no shutdown
+exit
+interface e0/0
+switchport access vlan 2
+no shutdown
+exit
+int e0/2
+switchport access vlan 3
+no shutdown
+exit
+dhcpd add 192.168.10.25-192.168.10.35 inside
+dhcpd dns 192.168.10.10 interface inside
+dhcpd enable inside
+ntp server 192.168.10.10
+ntp authenticate
+ntp authentication-key 1 md5 corpkey
+ntp trusted-key 1
+aaa authentication ssh console LOCAL
+ssh 192.168.10.5 255.255.255.255 inside
+ssh timeout 20
+object network inside-nat
+subnet 192.168.10.0 255.255.255.0
+nat (inside,outside) dynamic interface
+exit
+configure terminal
+object network dmz-dns-server
+host 192.168.20.5
+nat (dmz,outside) static 209.165.200.242
+exit
+configure terminal
+object network dmz-web-server
+host 192.168.20.2
+nat (dmz,outside) static 209.165.200.241
+exit
+configure terminal
+class-map inspection_default
+match default-inspection-traffic
+policy-map global_policy
+class inspection_default
+inspect dns
+inspect ftp
+inspect http
+inspect icmp
+exit
+service-policy global_policy global
+access-list OUTSIDE-TO-DMZ extended permit tcp any host 209.165.200.241 eq 80
+access-list OUTSIDE-TO-DMZ extended permit tcp any host 209.165.200.242 eq 53
+access-list OUTSIDE-TO-DMZ extended permit udp any host 209.165.200.242 eq 53
+access-list OUTSIDE-TO-DMZ extended permit tcp host 198.133.219.35 host 209.165.200.241 eq ftp
+access-group OUTSIDE-TO-DMZ in interface outside
+
+Branch Config
+access-list 120 permit ip 198.133.219.32 0.0.0.31 209.165.200.240 0.0.0.15
+crypto isakmp policy 10
+encryption aes 256
+authentication pre-share
+group 2
+lifetime 86400
+hash sha
+exit
+crypto isakmp key Vpnpass101 address 209.165.200.226
+crypto ipsec transform-set VPN-SET esp-3des esp-sha-hmac
+crypto map VPN-MAP 10 ipsec-isakmp
+set peer 209.165.200.226
+set transform-set VPN-SET
+match address 120
+exit
+interface s0/0/0
+crypto map VPN-MAP
+end
+copy running-config startup-config
+
+HQ Config
+access-list 120 permit ip 209.165.200.240 0.0.0.15 198.133.219.32 0.0.0.31
+crypto isakmp policy 10
+encryption aes 256
+authentication pre-share
+group 2
+lifetime 86400
+hash sha
+exit
+crypto isakmp key Vpnpass101 address 198.133.219.2
+crypto ipsec transform-set VPN-SET esp-3des esp-sha-hmac
+crypto map VPN-MAP 10 ipsec-isakmp
+set peer 198.133.219.2
+set transform-set VPN-SET
+match address 120
+exit
+interface s0/0/0
+crypto map VPN-MAP
+end
+copy running-config startup-config
